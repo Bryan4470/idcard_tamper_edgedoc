@@ -16,17 +16,7 @@ import math
 import numpy as np
 from PIL import Image
 
-
-# cd /remote/idiap.svm/user.active/ageorge/WORK/BATL_ENV_Bob9/src/baseline-docker/src && conda activate pt2
-
-# Adjust the import below if the class lives in a differently named file.
-# The important part is that `preprocess_image` and `TruFor` resolve.
 from model_gttrufor import preprocess_image, TruFor    # noqa: E402
-
-
-# from model_default import preprocess_image, TruFor    # noqa: E402
-
-
 from fantasy_gt import create_groundtruth_mask, save_mask_as_jpg
 
 import os
