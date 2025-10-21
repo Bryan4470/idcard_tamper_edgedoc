@@ -2,7 +2,7 @@
 #
 # SPDX-FileContributor: Anjith George  <anjith.george@idiap.ch>
 #
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: CC-BY-NC-SA-4.0
 """
 Light-weight self-contained checks for the TruFor model implementation.
 Run with:  python test_trufor_manual.py

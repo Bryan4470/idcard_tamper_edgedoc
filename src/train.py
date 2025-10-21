@@ -2,7 +2,7 @@
 #
 # SPDX-FileContributor: Anjith George  <anjith.george@idiap.ch>
 #
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: CC-BY-NC-SA-4.0
 # 
 """Train Tiny-UNet head on **pre-computed** TruFor maps (train/val CSV).
 

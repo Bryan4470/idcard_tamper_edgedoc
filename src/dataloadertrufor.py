@@ -1,3 +1,9 @@
+# SPDX-FileCopyrightText: 2025 Idiap Research Institute <contact@idiap.ch>
+#
+# SPDX-FileContributor: Anjith George  <anjith.george@idiap.ch>
+#
+# SPDX-License-Identifier: CC-BY-NC-SA-4.0
+
 import os
 from pathlib import Path
 from typing import Optional, Callable
