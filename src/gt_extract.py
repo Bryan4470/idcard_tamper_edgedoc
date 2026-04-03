@@ -12,11 +12,15 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+
+# Add project root and src/ to path so both local modules and trufor are found
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_PROJECT_ROOT))
+sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 import math
 import numpy as np
 from PIL import Image
 
-from model_gttrufor import preprocess_image, TruFor    # noqa: E402
 from fantasy_gt import create_groundtruth_mask, save_mask_as_jpg
 
 import os
@@ -25,7 +29,11 @@ import os
 import pandas as pd
 
 
-df=pd.read_csv('FANTASY/FantasyIDiap-ICCV25-Challenge/fantasyIDiap-oneset.csv')
+_base = 'FANTASY/FantasyIDiap-ICCV25-Challenge'
+df = pd.concat([
+    pd.read_csv(f'{_base}/train.csv'),
+    pd.read_csv(f'{_base}/test.csv'),
+], ignore_index=True)
 
 
 BASEPATH = 'FANTASY/FantasyIDiap-ICCV25-Challenge'
@@ -68,10 +76,8 @@ def _assert(cond: bool, msg: str) -> None:
     if not cond:
         sys.exit(f"✗ {msg}")
 
-model = TruFor()   # will automatically pick CPU if CUDA unavailable
-
 # --------------------------------------------------------------------------- #
-# 1.  preprocess_image                                                        #
+# 1.  Generate GT masks                                                       #
 # --------------------------------------------------------------------------- #
 
 # Synthetic 10×10 RGB image filled with mid-gray
@@ -93,38 +99,11 @@ for index, row in df.iterrows():
     
     fullpath = row['fullpath']
     map_label = lambda x: 'bonafide' if x == False else 'attack'
-    
+
     label = map_label(row['is_attack'])
-    image_type = row['image_type']
-    
-    
-    print(f"Processing {fullpath} with label {label} and image type {image_type}")
-    # if not p.exists():
-    #     sys.exit(f"✗ Test image not found: {p}")
-
-    # --------------------------------------------------------------------- #
-    # 2.1  Load & preprocess                                                #
-    # --------------------------------------------------------------------- #
-
-
-    np_img = np.array(Image.open(fullpath).convert("RGB"))
-    img_tensor = preprocess_image(np_img)
-
-
-    score_dl, mask_dl, conf_dl, npp_dl = model.detect_and_localize(img_tensor)
-
-    # import ipdb; ipdb.set_trace()
-
-
-    concat=np.stack([mask_dl, conf_dl, npp_dl[1,:,:], np_img[:,:,1]/256 ])
+    print(f"Processing {fullpath} with label {label}")
 
     save_path = os.path.join(SAVEPATH, os.path.relpath(fullpath, BASEPATH))
-
-    savepathtrufor = os.path.join(TFORSAVEPATH, os.path.relpath(fullpath, BASEPATH).replace('.jpg', '.npy'))
-
-    os.makedirs(os.path.dirname(savepathtrufor), exist_ok=True)
-    np.save(savepathtrufor, concat)
-
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     create_groundtruth_mask(fullpath, fullpath.replace('.jpg', '.json'), save_path)

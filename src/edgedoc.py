@@ -4,9 +4,12 @@
 #
 # SPDX-License-Identifier: CC-BY-NC-SA-4.0
 
+import sys
 from collections import namedtuple
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 import numpy as np
+from PIL import Image
 import torch as pt
 import torch.nn as nn
 from trufor.cmx.builder_np_conf import (
@@ -149,10 +152,19 @@ class TinyDocNetEdgeNeXt(nn.Module):
             nn.Flatten(),
             nn.Linear(c4, 1)        # 168 → 1
         )
+        # self.cls_head  = nn.Sequential(                 # page-level score
+        #     nn.AdaptiveAvgPool2d(1),
+        #     nn.Flatten(),
+        #     nn.Dropout(0.4),
+        #     nn.Linear(c4, 64),
+        #     nn.ReLU(inplace=True),
+        #     nn.Dropout(0.3),
+        #     nn.Linear(64, 1),
+        # )
 
     def forward(self, x):
         H, W = x.shape[2:]                 # remember original size
-        x= x[:, 1:3, :, :]  # (B, 2, H, W) – remove alpha channel
+        # x: (B, 5, H, W) — [red, green, blue, npp, conf]
         f1, f2, f3, f4 = self.enc(x)
 
         x = self.up3(f4, f3)               # 1/32 → 1/16
@@ -180,14 +192,13 @@ class TruFor:
         self._model = None
 
 
-        self.tinydoc = TinyDocNetEdgeNeXt(in_chans=2)
+        self.tinydoc = TinyDocNetEdgeNeXt(in_chans=3)
 
 
-        self.tinydocpath= Path(__file__).parent.parent / "weights/tinydocedgepretrained_nobn_2channel.pth"
+        self.tinydocpath= Path(__file__).parent.parent / "checkpoints/last.pth"
 
-
-        state_dict = torch.load(self.tinydocpath, map_location="cpu")
-
+        ckpt = torch.load(self.tinydocpath, map_location="cpu")
+        state_dict = ckpt['model'] if isinstance(ckpt, dict) and 'model' in ckpt else ckpt
 
         self.tinydoc.load_state_dict(state_dict, strict=True)
         self.tinydoc.eval()
@@ -241,6 +252,16 @@ class TruFor:
 
     def detect_and_localize(self, img: pt.Tensor) -> tuple[float, np.ndarray]:
         """Run detection and localization in one forward pass."""
+        # match training: cap long edge at 1024 (same as extract_trufor_tamper.py)
+        MAX_DIM = 1259 #1259x800 original ic card size   
+        _, h, w = img.shape
+        if max(h, w) > MAX_DIM:
+            scale = MAX_DIM / max(h, w)
+            pil = Image.fromarray(
+                deprocess_image(img)
+            ).resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+            img = preprocess_image(np.array(pil))
+
         batch = img[None, ...]
         pred, conf, det, npp = self._forward(batch=batch)
         score = self._compute_score(det)
@@ -248,12 +269,31 @@ class TruFor:
         conf=conf.squeeze().numpy(force=True)
         npp = npp.squeeze().numpy(force=True)
 
+        # match training: resize conf/npp to mask spatial dims, average npp channels
+        from scipy.ndimage import zoom as _zoom
+        h, w = mask.shape
+        def _resize(arr, th, tw):
+            arr = np.squeeze(arr)
+            if arr.ndim == 0:
+                return np.full((th, tw), float(arr), dtype=np.float32)
+            if arr.ndim == 3:
+                arr = arr.mean(axis=0)
+            if arr.shape == (th, tw):
+                return arr
+            return _zoom(arr, (th / arr.shape[0], tw / arr.shape[1]), order=1)
 
-        np_img=deprocess_image(img)
+        conf = _resize(conf, h, w)
+        npp  = _resize(npp,  h, w)
 
+        np_img = deprocess_image(img)   # (H, W, 3) uint8 RGB
+        rgb    = np_img.astype(np.float32) / 256.0
 
-        concat=np.stack([mask, conf, npp[1,:,:], np_img[:,:,1]/256 ]) 
-        concat=concat.astype(np.float32)
+        # stack: [green, npp, conf] — matches dataloader_tamper.py
+        concat = np.stack([
+            rgb[:, :, 1],   # green channel
+            npp,            # NoisePrint++ — forensic noise signal
+            conf,           # TruFor confidence map
+        ]).astype(np.float32)
 
         tf_tensor = pt.from_numpy(concat)
 

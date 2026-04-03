@@ -102,9 +102,14 @@ def create_groundtruth_mask(
 
         for region in data.get("regions", []):
             sa = region.get("shape_attributes", {})
+            ra = region.get("region_attributes", {})
 
             # Only rectangles are handled.
             if sa.get("name") != "rect":
+                continue
+
+            # Only mark altered regions; skip if absent or not "altered".
+            if ra.get("region_provenance") != "altered":
                 continue
 
             x = int(round(sa.get("x", 0)))

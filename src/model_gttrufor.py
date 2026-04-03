@@ -101,7 +101,7 @@ class TruFor:
     def _compute_score(self, det):
         score = pt.sigmoid(det).numpy(force=True)[0]
         # Model outputs 0 for pristine pixels and 1 for forged pixels
-        return float(1.0 - score)
+        return float(1.0 - score) # raw model: 1=forged → flipped: 1=genuine swap
 
     def localize(self, img: pt.Tensor) -> np.ndarray:
         """Run prediction."""
